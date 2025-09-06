@@ -1,0 +1,88 @@
+name: lainTSX build and deploy
+run-name: Run ${{ github.run_id }} attempt ${{ github.run_attempt }}
+on: [push]
+jobs:
+  creating-npm-cache:
+    runs-on: ubuntu-latest
+    container:
+      image: node:16-buster-slim
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v3
+      - name: Cache node modules
+        id: cache-nodemodules
+        uses: actions/cache@v4
+        env:
+          cache-name: cache-node-modules
+        with:
+          # caching node_modules
+          path: node_modules
+          key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-build-${{ env.cache-name }}-
+            ${{ runner.os }}-build-
+            ${{ runner.os }}-
+      - name: Install NPM Dependencies
+        if: steps.cache-nodemodules.outputs.cache-hit != 'true'
+        run: npm ci
+
+  build-and-deploy:
+    needs: creating-npm-cache
+    runs-on: [self-hosted, linux, x64]
+    container:
+      image: ${{ vars.LAINTSX_BUILDER_DOCKER_IMAGE }}
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v3
+        with:
+          submodules: recursive
+      - name: Cache node modules
+        id: cache-nodemodules
+        uses: actions/cache@v4
+        env:
+          cache-name: cache-node-modules
+        with:
+          # caching node_modules
+          path: node_modules
+          key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-build-${{ env.cache-name }}-
+            ${{ runner.os }}-build-
+            ${{ runner.os }}-
+      - name: Extract static files
+        run: find /opt/extract/ -name *.tar.gz -exec tar xf {} \;
+      - name: Install Dependencies again on cached dir (faster)
+        run: npm ci
+      - name: Build
+        run: npm run build --verbose
+      - name: Copy current subtitles to the build
+        run: cp -r src/static/media/webvtt/ build/ && rm -rf build/webvtt/.git
+      - name: Set outputs
+        id: vars
+        run: |
+              BUILD_VERSION=$(date +%Y-%m-%d_%H-%M-%S)-$(git rev-parse --short HEAD)
+              echo ${BUILD_VERSION} | tee build/version.txt
+              echo "filename=lainTSX-${BUILD_VERSION}.zip" >> $GITHUB_OUTPUT
+      - name: Redbean download
+        run: |
+              curl --fail \
+              -H "Authorization: Bearer ${{ secrets.UPLOAD_KEY }}" \
+              ${{ secrets.DEPLOY_URL }}redbean-latest.zip -o build.zip
+      - name: Pack
+        run: cd build && zip --quiet --recurse-paths ../build.zip * ; cd ..
+      - name: Rename
+        run: mv build.zip "${{ steps.vars.outputs.filename }}"
+      - name: Upload
+        run: |
+              curl --fail \
+              -H "Authorization: Bearer ${{ secrets.UPLOAD_KEY }}" \
+              -F file=@${{ steps.vars.outputs.filename }} \
+              ${{ secrets.DEPLOY_URL }}
+      - name: Deploy to test server
+        run: |
+              curl --fail \
+              -H "Authorization: Bearer ${{ secrets.UPLOAD_KEY }}" \
+              ${{ secrets.DEPLOY_URL }}${{ steps.vars.outputs.filename }}?action=testserver
+      - name: Self Hosted Runner Post Job Cleanup Action
+        uses: TooMuch4U/actions-clean@v2.1
+

@@ -1,5 +1,5 @@
 import { spawnSync } from "child_process";
-import { readFileSync, mkdirSync, writeFileSync, renameSync } from "fs";
+import { readFileSync, mkdirSync, writeFileSync, copyFile } from "fs";
 import { join, resolve } from "path";
 import LainCompress from "./lain_compress.js";
 
@@ -40,9 +40,12 @@ export function extract_site_images(tempdir, jpsxdec_jar) {
         ["-jar", jpsxdec_jar, "-f", tim_file, "-static", "tim"],
         { stdio: "inherit", cwd: tempdir }
       );
-      renameSync(
+      copyFile(
         join(tempdir, `${index}_p0.png`),
-        join(output_folder, `${index}.png`)
+        join(output_folder, `${index}.png`),
+        (err) => {
+          if (err) { console.log("Error Found:", err); }
+        }
       );
     }
   }

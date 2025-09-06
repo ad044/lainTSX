@@ -43,6 +43,7 @@ export function extract_voice(tempdir, jpsxdec_jar) {
         22050,
         "-f",
         "s16le",
+        "-n",
         "-i",
         tempfile,
         outfile,

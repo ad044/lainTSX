@@ -1,3 +1,3 @@
 [submodule "webvtt"]
 	path = src/static/media/webvtt
-	url = https://github.com/laingame-net/lainvtt
+	url = ../lainvtt.git

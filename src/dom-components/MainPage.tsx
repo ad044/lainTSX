@@ -113,6 +113,18 @@ const MainPage = () => {
         />{" "}
         <Credit
           name={
+            "publicdesert, Sealtyth, Doftos, dogukan57"
+          }
+          credit={"German translation."}
+        />{" "}
+        <Credit
+          name={
+            "RadioYamashita, Dylan Del Castillo Dunn Meynell"
+          }
+          credit={"Japanese transcript."}
+        />{" "}
+        <Credit
+          name={
             "Cyle, Chair Broken, aeon, Mainu, karuhaku, pb29"
           }
           credit={"Korean translation."}

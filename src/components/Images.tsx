@@ -43,7 +43,7 @@ const Images = () => {
         imgTries++;
         if (img[1] !== "-1") {
           import(
-            "../static/media/images/" + activeSite + "/" + img[1] + ".png"
+            "../static/images/" + activeSite + "/" + img[1] + ".png"
           ).then((imageSrc: { default: string }) => {
             imgArr.splice(parseInt(img[0]), 0, imageSrc);
             if (imgTries === 3) {
