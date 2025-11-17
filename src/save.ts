@@ -1,5 +1,14 @@
-import { NodeID } from "./node";
-import { SiteKind, CursorLocation, MatrixPosition2D } from "./site";
+import { NodeData, NodeID } from "./node";
+import {
+    SiteKind,
+    CursorLocation,
+    MatrixPosition2D,
+    SITE_A_NODES,
+    SITE_B_NODES,
+    SiteLayout,
+    get_level_count,
+} from "./site";
+import { clamp_between, clamp_bottom, to_numeric_or_null } from "./util";
 
 export type PolytanPartProgress = {
     body: boolean;
@@ -26,6 +35,7 @@ export type GameState = {
     name: string;
 };
 
+const LEGACY_SAVE_KEY = "lainSaveState";
 const SAVE_KEY = "lainTSX-save-v3";
 
 export function save_state(game_state: GameState, key: string = SAVE_KEY): void {
@@ -156,6 +166,13 @@ function validate_game_state(obj: any): { valid: boolean; errors: string[] } {
     return { valid: errors.length === 0, errors };
 }
 
+function correct_location_errors(location: CursorLocation): void {
+    location.node_matrix_position.row = clamp_between(location.node_matrix_position.row, 0, 2);
+    location.node_matrix_position.col = clamp_between(location.node_matrix_position.col, 0, 3);
+    location.level = clamp_between(location.level, 0, get_level_count(location.site_kind));
+    location.site_segment = clamp_between(location.site_segment, 0, 7);
+}
+
 export function get_saved_state(): GetSavedStateResult {
     const default_save = get_default_state();
 
@@ -181,13 +198,12 @@ export function get_saved_state(): GetSavedStateResult {
             return { saved_state: default_save, found_valid_save: false };
         }
 
-        if (state.progress.gate_level > 4) {
-            state.progress.gate_level = 4;
-        }
-
-        if (state.progress.gate_level < 0) {
-            state.progress.gate_level = 0;
-        }
+        // correct potentially erroneous values
+        state.progress.gate_level = clamp_between(state.progress.gate_level, 0, 4);
+        state.progress.final_video_view_count = clamp_bottom(state.progress.final_video_view_count, 0);
+        state.progress.sskn_level = clamp_bottom(state.progress.sskn_level, 0);
+        correct_location_errors(state.a_location);
+        correct_location_errors(state.b_location);
 
         return { saved_state: state, found_valid_save: true };
     } catch (err) {
@@ -219,4 +235,199 @@ export function get_current_location(game_state: GameState): CursorLocation {
         case SiteKind.B:
             return game_state.b_location;
     }
+}
+
+////////////////////////////////////////////////////////////
+// converting legacy saves to new format
+////////////////////////////////////////////////////////////
+type LegacyGameProgress = {
+    sskn_level: number;
+    gate_level: number;
+    final_video_viewcount: number;
+    polytan_unlocked_parts: {
+        body: boolean;
+        head: boolean;
+        left_arm: boolean;
+        right_arm: boolean;
+        left_leg: boolean;
+        right_leg: boolean;
+    };
+    nodes: Record<string, { is_viewed: boolean }>;
+};
+
+type LegacyNodeMatrixIndex = {
+    matrixIdx: number;
+    rowIdx: number;
+    colIdx: number;
+};
+
+type LegacyNodeData = {
+    id: string;
+    image_table_indices: { 1: string; 2: string; 3: string };
+    triggers_final_video: number;
+    required_final_video_viewcount: number;
+    media_file: string;
+    node_name: string;
+    site: "A" | "B";
+    type: number;
+    title: string;
+    unlocked_by: string;
+    upgrade_requirement: number;
+    words: { 1: string; 2: string; 3: string };
+    protocol_lines: {
+        1: string;
+        2: string;
+        3: string;
+    };
+    matrixIndices?: LegacyNodeMatrixIndex;
+    is_viewed?: number;
+};
+
+type LegacySiteSaveState = {
+    activeNode: LegacyNodeData;
+    siteRot: number[];
+    activeLevel: string;
+};
+
+type LegacyGameState = {
+    siteSaveState: {
+        a: LegacySiteSaveState;
+        b: LegacySiteSaveState;
+    };
+    activeNode: LegacyNodeData;
+    siteRot: number[];
+    activeLevel: string;
+    activeSite: SiteKind;
+    gameProgress: LegacyGameProgress;
+    playerName: string;
+};
+
+function flatten_site(site: SiteLayout<NodeData>): NodeData[] {
+    return site.flatMap((level) =>
+        level.flatMap((row) => row.filter((node): node is NodeData => node !== null))
+    );
+}
+
+function upgrade_legacy_progress(legacy_progress: LegacyGameProgress): Progress {
+    const viewed_node_names = Object.keys(legacy_progress.nodes).filter(
+        (key) => legacy_progress.nodes[key].is_viewed
+    );
+    const all_nodes = [...flatten_site(SITE_A_NODES), ...flatten_site(SITE_B_NODES)];
+
+    const viewed_node_ids = new Set(
+        viewed_node_names
+            .map((name) => all_nodes.find((node) => node.name === name)?.id)
+            .filter((id): id is string => id !== undefined)
+    );
+
+    const {
+        sskn_level,
+        gate_level,
+        final_video_viewcount: final_video_view_count,
+        polytan_unlocked_parts: polytan_parts,
+    } = legacy_progress;
+
+    return {
+        sskn_level,
+        gate_level,
+        final_video_view_count,
+        polytan_parts,
+        viewed_nodes: viewed_node_ids,
+    };
+}
+
+function upgrade_location(site_kind: SiteKind, state: LegacyGameState): CursorLocation | null {
+    const legacy_location = state.siteSaveState[site_kind];
+
+    const matrix_indices = legacy_location.activeNode.matrixIndices;
+    if (!matrix_indices) {
+        return null;
+    }
+
+    const level = to_numeric_or_null(state.activeLevel);
+    if (level == null) {
+        return null;
+    }
+
+    const site_segment = matrix_indices.matrixIdx;
+
+    return {
+        node_matrix_position: { row: matrix_indices.rowIdx, col: matrix_indices.colIdx },
+        site_segment,
+        level,
+        site_kind,
+    };
+}
+
+function upgrade_legacy_save(legacy_save_state: LegacyGameState): GameState {
+    const default_save = get_default_state();
+
+    return {
+        a_location: upgrade_location(SiteKind.A, legacy_save_state) ?? default_save.a_location,
+        b_location: upgrade_location(SiteKind.B, legacy_save_state) ?? default_save.b_location,
+        progress: upgrade_legacy_progress(legacy_save_state.gameProgress),
+        name: legacy_save_state.playerName,
+        site: legacy_save_state.activeSite,
+    };
+}
+
+function is_valid_legacy_game_state(data: unknown): data is LegacyGameState {
+    if (!data || typeof data !== "object") return false;
+    const state = data as any;
+
+    if (typeof state.activeLevel !== "string") return false;
+
+    if (typeof state.playerName !== "string") return false;
+
+    if (!["a", "b"].includes(state.activeSite)) return false;
+
+    // validate site save states
+    if (!state.siteSaveState?.a || !state.siteSaveState?.b) return false;
+
+    for (const site of [state.siteSaveState.a, state.siteSaveState.b]) {
+        if (!site.activeNode || typeof site.activeNode !== "object") return false;
+        if (!site.activeNode.matrixIndices || typeof site.activeNode.matrixIndices !== "object") return false;
+    }
+
+    // validate gameProgress
+    const gp = state.gameProgress;
+    if (!gp || typeof gp !== "object") return false;
+    if (typeof gp.sskn_level !== "number") return false;
+    if (typeof gp.gate_level !== "number") return false;
+    if (typeof gp.final_video_viewcount !== "number") return false;
+
+    const parts = gp.polytan_unlocked_parts;
+    if (!parts || typeof parts !== "object") return false;
+    if (typeof parts.body !== "boolean") return false;
+    if (typeof parts.head !== "boolean") return false;
+    if (typeof parts.left_arm !== "boolean") return false;
+    if (typeof parts.right_arm !== "boolean") return false;
+    if (typeof parts.left_leg !== "boolean") return false;
+    if (typeof parts.right_leg !== "boolean") return false;
+
+    if (!gp.nodes || typeof gp.nodes !== "object") return false;
+
+    return true;
+}
+
+export function check_if_legacy_save_and_upgrade(): void {
+    const legacy_save = localStorage.getItem(LEGACY_SAVE_KEY);
+    if (legacy_save === null) {
+        return;
+    }
+
+    try {
+        const parsed_legacy_save = JSON.parse(legacy_save);
+        if (!is_valid_legacy_game_state(parsed_legacy_save)) {
+            return;
+        }
+
+        const upgraded_save = upgrade_legacy_save(parsed_legacy_save);
+        save_state(upgraded_save);
+    } catch (e) {
+        console.error("failed to upgrade legacy save", e);
+    }
+
+    localStorage.setItem(`_${LEGACY_SAVE_KEY}`, legacy_save);
+    localStorage.removeItem(LEGACY_SAVE_KEY);
 }

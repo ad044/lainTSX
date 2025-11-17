@@ -1,7 +1,10 @@
 import { engine_create, get_user_language, read_key_mappings, SceneKind } from "./engine";
+import { check_if_legacy_save_and_upgrade } from "./save";
 import { SiteScene } from "./site";
 
 (async () => {
+    check_if_legacy_save_and_upgrade();
+
     let is_page_visible = !document.hidden;
     let animation_id: number;
     let last_time = 0;

@@ -44,6 +44,30 @@ export function split_digits(n: number): [number, number] {
     return [Math.floor(n / 10), n % 10];
 }
 
+export function clamp_between(n: number, a: number, b: number): number {
+    if (n < a) {
+        return a;
+    }
+
+    if (n > b) {
+        return b;
+    }
+
+    return n;
+}
+
+export function clamp_bottom(n: number, min: number): number {
+    return Math.max(n, min);
+}
+
+export function to_numeric_or_null(str: string): number | null {
+    if (str.trim() === "" || isNaN(Number(str))) {
+        return null;
+    }
+
+    return Number(str);
+}
+
 export function are_colors_equal(c1: THREE.Color, c2: THREE.Color): boolean {
     const threshold = 0.01;
 
