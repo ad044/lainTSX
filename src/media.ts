@@ -559,6 +559,8 @@ function handle_keys(
 
                 const word_search_result = find_next_node_via_word(media.node, word.value);
 
+                media.player.reset_and_pause();
+
                 if (!is_node_visible(word_search_result.node, progress)) {
                     return {
                         new_scene: new SiteScene(progress, media.enter_location, time, camera, {
