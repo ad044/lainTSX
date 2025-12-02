@@ -344,7 +344,7 @@ function upgrade_location(site_kind: SiteKind, state: LegacyGameState): CursorLo
         return null;
     }
 
-    const level = to_numeric_or_null(state.activeLevel);
+    const level = to_numeric_or_null(legacy_location.activeLevel);
     if (level == null) {
         return null;
     }
