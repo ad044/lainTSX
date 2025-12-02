@@ -25,11 +25,22 @@ export class MediaPlayer {
     track_el: HTMLTrackElement;
     subtitle_el: HTMLParagraphElement;
     current_text_track: TextTrack | null = null;
+    bound_cue_change: (e: any) => void;
 
     constructor(media_src?: string, track_src?: string) {
         this.media_el = get_media_element();
         this.track_el = document.getElementById("track") as HTMLTrackElement;
         this.subtitle_el = document.getElementById("subtitle") as HTMLParagraphElement;
+        this.bound_cue_change = this.handle_cue_change.bind(this);
+
+        this.media_el.textTracks.addEventListener("addtrack", (e) => {
+            const track = e.track;
+            if (track) {
+                track.mode = "hidden";
+                track.addEventListener("cuechange", this.bound_cue_change);
+                this.current_text_track = track;
+            }
+        });
 
         if (media_src) {
             this.load(media_src, track_src);
@@ -50,15 +61,16 @@ export class MediaPlayer {
         const track = event.target;
         const { activeCues } = track;
 
-        if (activeCues) {
-            const text = [...activeCues].map((cue) => (cue as VTTCue).text)[0];
-            this.subtitle_el.textContent = text;
+        if (activeCues && activeCues.length > 0) {
+            this.subtitle_el.textContent = (activeCues[0] as VTTCue).text;
+        } else {
+            this.subtitle_el.textContent = "";
         }
     }
 
     load(media_src: string, track_src?: string): void {
         if (this.current_text_track) {
-            this.current_text_track.removeEventListener("cuechange", this.handle_cue_change.bind(this));
+            this.current_text_track.removeEventListener("cuechange", this.bound_cue_change);
             this.current_text_track = null;
         }
 
@@ -81,14 +93,6 @@ export class MediaPlayer {
         }
 
         this.media_el.appendChild(this.track_el);
-
-        this.track_el.addEventListener("load", () => {
-            this.current_text_track = this.media_el.textTracks[0];
-            if (this.current_text_track) {
-                this.current_text_track.addEventListener("cuechange", this.handle_cue_change.bind(this));
-                this.current_text_track.mode = "hidden";
-            }
-        });
     }
 
     play(): Promise<void> {
@@ -97,8 +101,9 @@ export class MediaPlayer {
     }
 
     get_elapsed_percentage(): number {
-        if (this.media_el.readyState === 4) {
-            return Math.floor((this.media_el.currentTime / this.media_el.duration) * 100);
+        if (this.media_el.readyState >= 1 && this.media_el.duration > 0) {
+            const pct = (this.media_el.currentTime / this.media_el.duration) * 100;
+            return Math.min(100, Math.round(pct));
         }
 
         return 0;
