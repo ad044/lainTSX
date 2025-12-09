@@ -521,6 +521,7 @@ export class Engine {
 
     set_scene(scene: Scene) {
         this.scene = scene;
+
         if (scene.scene_kind === SceneKind.Site) {
             this.camera.fov = SITE_SCENE_FOV;
         } else {
@@ -533,6 +534,13 @@ export class Engine {
             media_el.style.display = "block";
         } else {
             media_el.style.display = "none";
+        }
+
+        const canvas_el = document.getElementById("main-canvas")!;
+        if (scene.scene_kind === SceneKind.Media && !scene.is_audio_only) {
+            canvas_el.style.background = "none";
+        } else {
+            canvas_el.style.background = "#000";
         }
 
         this.camera.updateProjectionMatrix();
@@ -552,6 +560,7 @@ export class Engine {
         this.renderer.toneMapping = THREE.NoToneMapping;
         this.renderer.outputColorSpace = THREE.LinearSRGBColorSpace;
         this.renderer.setPixelRatio(window.devicePixelRatio);
+        this.renderer.domElement.id = "main-canvas";
         document.getElementById("game-container")!.appendChild(this.renderer.domElement);
 
         if (this.is_debug) {
