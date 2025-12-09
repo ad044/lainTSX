@@ -1,6 +1,7 @@
 const LANG_KEY = "lainTSX-lang";
 const KEYBINDINGS_KEY = "lainTSX-keys"
 const SAVE_KEY = "lainTSX-save-v3"
+const LEGACY_SAVE_KEY = "lainSaveState";
 
 const LAND_AND_BINDINGS_HTML = `
         <div class="modal-inner-row" id="lang-bindings-modal">
@@ -725,7 +726,12 @@ class Modal {
                         try {
                                 const parsed = JSON.parse(e.target.result);
 
-                                localStorage.setItem(SAVE_KEY, JSON.stringify(parsed));
+                                // heuristic to check whether it's a legacy save file
+                                if (parsed.siteSaveState) {
+                                        localStorage.setItem(LEGACY_SAVE_KEY, JSON.stringify(parsed))
+                                } else {
+                                        localStorage.setItem(SAVE_KEY, JSON.stringify(parsed));
+                                }
 
                                 location.reload();
                         } catch (err) {
