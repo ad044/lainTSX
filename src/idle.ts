@@ -176,4 +176,8 @@ export class IdleScene extends THREE.Scene {
             this.media_player.log_error(err);
         });
     }
+
+    is_video(): boolean {
+        return this.node_id === null;
+    }
 }

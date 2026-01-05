@@ -537,7 +537,10 @@ export class Engine {
         }
 
         const canvas_el = document.getElementById("main-canvas")!;
-        if (scene.scene_kind === SceneKind.Media && !scene.is_audio_only) {
+        if (
+            (scene.scene_kind === SceneKind.Media && !scene.is_audio_only) ||
+            (scene.scene_kind === SceneKind.Idle && scene.is_video())
+        ) {
             canvas_el.style.background = "none";
         } else {
             canvas_el.style.background = "#000";
