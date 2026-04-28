@@ -8,12 +8,14 @@ const LAND_AND_BINDINGS_HTML = `
                 <div class="modal-entry">
                         <div class="modal-entry-title language">Language</div>
                         <div class="language-entry" data-lang="en" id="lang-en">English</div>
+                        <div class="language-entry" data-lang="es-ES" id="lang-es-ES">Spanish</div>
                         <div class="language-entry" data-lang="de" id="lang-de">German</div>
                         <div class="language-entry" data-lang="fr" id="lang-fr">French</div>
                         <div class="language-entry" data-lang="ja" id="lang-ja">Japanese</div>
                         <div class="language-entry" data-lang="ko" id="lang-ko">Korean</div>
                         <div class="language-entry" data-lang="pt-BR" id="lang-pt-BR">Portuguese</div>
                         <div class="language-entry" data-lang="ru" id="lang-ru">Russian</div>
+                        <div class="language-entry" data-lang="zh-CN" id="lang-zh-CN">Chinese</div>
                         </div>
                         <div class="modal-entry">
                         <button class="reset-keybindings-button" id="reset-keybinds-btn">

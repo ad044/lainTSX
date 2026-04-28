@@ -72,12 +72,14 @@ export type Language = {
 
 export const SUPPORTED_LANGUAGES: Language[] = [
     { name: "English", code: "en" },
+    { name: "Spanish", code: "es-ES" },
     { name: "German", code: "de" },
     { name: "French", code: "fr" },
     { name: "Japanese", code: "ja" },
     { name: "Korean", code: "ko" },
     { name: "Portuguese", code: "pt-BR" },
     { name: "Russian", code: "ru" },
+    { name: "Chinese", code: "zh-CN" },
 ];
 
 export function get_user_language(): Language {
