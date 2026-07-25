@@ -117,6 +117,18 @@ export enum Key {
     Start,
 }
 
+// number of entries in the Key enum (numeric enums produce reverse mappings too,
+// so divide the raw key count by two)
+// W3C "standard" gamepad mapping -> PSX Key
+// Buttons:
+//   0=Cross(A)   1=Circle(B)   2=Square(X)   3=Triangle(Y)
+//   4=L1(LB)     5=R1(RB)     6=L2(LT)     7=R2(RT)
+//   8=Select(Back)  9=Start  10-11=unused  12-15=D-pad(Up/Down/Left/Right)
+// Note: The actual mapping from these indices to Key enum values is handled in the mapping logic below.
+export const KEY_COUNT = Object.keys(Key).length / 2;
+
+export const GAMEPAD_DEADZONE = 0.35;
+
 // resources (textures/models/etc)
 export const SPRITE_ATLAS_DIM = 2048;
 
@@ -514,6 +526,10 @@ export class Engine {
     key_states: boolean[];
     pressed_keys: Set<string>;
     key_mappings: Record<string, Key>;
+    gamepad_enabled: boolean;
+    active_input: "keyboard" | "gamepad";
+    gamepad_index: number | null;
+    gamepad_prev: boolean[];
     camera: THREE.PerspectiveCamera;
     renderer: THREE.WebGLRenderer;
     time_multiplier: number;
@@ -587,6 +603,13 @@ export class Engine {
         }
 
         this.key_mappings = read_key_mappings();
+
+        this.gamepad_enabled = localStorage.getItem("lainTSX-gamepad") !== "false";
+        this.active_input = "keyboard";
+        this.gamepad_index = null;
+        this.gamepad_prev = new Array<boolean>(KEY_COUNT).fill(false);
+
+        this.update_input_hud();
     }
 
     handle_debug_keys(): void {
@@ -621,6 +644,96 @@ export class Engine {
         }
     }
 
+    set_active_input(source: "keyboard" | "gamepad"): void {
+        if (this.active_input === source) {
+            return;
+        }
+
+        this.active_input = source;
+        this.update_input_hud();
+    }
+
+    update_input_hud(): void {
+        const el = document.getElementById("input-source");
+        if (!el) {
+            return;
+        }
+
+        el.textContent = this.active_input === "gamepad" ? "input: gamepad" : "input: keyboard";
+        el.classList.toggle("gamepad", this.active_input === "gamepad");
+    }
+
+    // polls the Gamepad API every frame and feeds rising edges into key_states.
+    // only the currently active input source drives key_states, so a resting or
+    // drifting gamepad never interferes with the keyboard and vice-versa.
+    poll_gamepad(): void {
+        if (!this.gamepad_enabled) {
+            this.gamepad_prev.fill(false);
+            return;
+        }
+
+        const pads = typeof navigator.getGamepads === "function" ? navigator.getGamepads() : [];
+
+        let pad: Gamepad | null = null;
+        const candidate = this.gamepad_index !== null ? pads[this.gamepad_index] : undefined;
+        if (candidate && candidate.connected) {
+            pad = candidate;
+        } else {
+            for (const p of pads) {
+                if (p && p.connected) {
+                    pad = p;
+                    this.gamepad_index = p.index;
+                    break;
+                }
+            }
+        }
+
+        const current = new Array<boolean>(KEY_COUNT).fill(false);
+
+        if (pad) {
+            const dz = GAMEPAD_DEADZONE;
+            const pressed = (i: number): boolean =>
+                !!pad!.buttons[i] && (pad!.buttons[i].pressed || pad!.buttons[i].value > dz);
+            const axis = (i: number): number => pad!.axes[i] ?? 0;
+
+            if (pressed(0)) current[Key.Cross] = true;
+            if (pressed(1)) current[Key.Circle] = true;
+            if (pressed(2)) current[Key.Square] = true;
+            if (pressed(3)) current[Key.Triangle] = true;
+            if (pressed(4)) current[Key.L1] = true;
+            if (pressed(5)) current[Key.R1] = true;
+            if (pressed(6)) current[Key.L2] = true;
+            if (pressed(7)) current[Key.R2] = true;
+            if (pressed(8)) current[Key.Select] = true;
+            if (pressed(9)) current[Key.Start] = true;
+            if (pressed(12)) current[Key.Up] = true;
+            if (pressed(13)) current[Key.Down] = true;
+            if (pressed(14)) current[Key.Left] = true;
+            if (pressed(15)) current[Key.Right] = true;
+
+            // left stick doubles as a d-pad
+            if (axis(1) < -dz) current[Key.Up] = true;
+            if (axis(1) > dz) current[Key.Down] = true;
+            if (axis(0) < -dz) current[Key.Left] = true;
+            if (axis(0) > dz) current[Key.Right] = true;
+        }
+
+        const any_activity = current.some((v) => v);
+        if (any_activity) {
+            this.set_active_input("gamepad");
+        }
+
+        if (this.active_input === "gamepad") {
+            for (let k = 0; k < KEY_COUNT; k++) {
+                if (current[k] && !this.gamepad_prev[k]) {
+                    this.key_states[k] = true;
+                }
+            }
+        }
+
+        this.gamepad_prev = current;
+    }
+
     update(time: number, delta: number) {
         const time_ctx = {
             delta: delta * this.time_multiplier,
@@ -628,6 +741,8 @@ export class Engine {
         };
 
         this.handle_engine_keys();
+
+        this.poll_gamepad();
 
         if (this.scene === null) {
             if (all_gltfs_loaded() && all_lapks_loaded() && all_audio_loaded()) {

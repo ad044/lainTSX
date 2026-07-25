@@ -2,6 +2,7 @@ const LANG_KEY = "lainTSX-lang";
 const KEYBINDINGS_KEY = "lainTSX-keys"
 const SAVE_KEY = "lainTSX-save-v3"
 const LEGACY_SAVE_KEY = "lainSaveState";
+const GAMEPAD_KEY = "lainTSX-gamepad";
 
 const LAND_AND_BINDINGS_HTML = `
         <div class="modal-inner-row" id="lang-bindings-modal">
@@ -21,6 +22,7 @@ const LAND_AND_BINDINGS_HTML = `
                         <button class="reset-keybindings-button" id="reset-keybinds-btn">
                                 Reset keybindings
                         </button>
+                        <button class="gamepad-toggle-button" id="gamepad-toggle-btn"></button>
                         <div class="keybindings" id="keybinds-list"></div>
                 </div>
         </div>
@@ -245,6 +247,7 @@ class Modal {
 
                 this.keybinds_list = document.getElementById("keybinds-list")
                 this.refresh_keybindings()
+                this.refresh_gamepad_toggle()
                 this.refresh_languages()
         }
 
@@ -326,6 +329,10 @@ class Modal {
 
                         if (e.target.closest("#reset-keybinds-btn")) {
                                 this.handle_reset_keybinds_click(e)
+                        }
+
+                        if (e.target.closest("#gamepad-toggle-btn")) {
+                                this.handle_gamepad_toggle_click()
                         }
 
                         if (e.target.closest("#unstuck-btn")) {
@@ -620,6 +627,20 @@ class Modal {
 
         handle_reset_keybinds_click() {
                 this.set_keybindings(DEFAULT_KEYBINDINGS.slice())
+        }
+
+        refresh_gamepad_toggle() {
+                const btn = document.getElementById("gamepad-toggle-btn")
+                const enabled = localStorage.getItem(GAMEPAD_KEY) !== "false"
+                btn.textContent = enabled ? "Gamepad: On" : "Gamepad: Off"
+                btn.classList.toggle("off", !enabled)
+        }
+
+        handle_gamepad_toggle_click() {
+                const enabled = localStorage.getItem(GAMEPAD_KEY) !== "false"
+                localStorage.setItem(GAMEPAD_KEY, enabled ? "false" : "true")
+                this.refresh_gamepad_toggle()
+                window.dispatchEvent(new CustomEvent('updategamepad'))
         }
 
         refresh_languages() {

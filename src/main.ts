@@ -40,6 +40,8 @@ import { SiteScene } from "./site";
                 return;
             }
 
+            engine.set_active_input("keyboard");
+
             const key = event.key.toLowerCase();
             if (key in engine.key_mappings) {
                 const psx_key = engine.key_mappings[key];
@@ -67,6 +69,24 @@ import { SiteScene } from "./site";
 
     window.addEventListener("updatekeybindings", (_: Event) => {
         engine.key_mappings = read_key_mappings();
+    });
+
+    window.addEventListener("gamepadconnected", (e: GamepadEvent) => {
+        engine.gamepad_index = e.gamepad.index;
+    });
+
+    window.addEventListener("gamepaddisconnected", (e: GamepadEvent) => {
+        if (engine.gamepad_index === e.gamepad.index) {
+            engine.gamepad_index = null;
+        }
+    });
+
+    window.addEventListener("updategamepad", () => {
+        const enabled = localStorage.getItem("lainTSX-gamepad") !== "false";
+        engine.gamepad_enabled = enabled;
+        if (!enabled) {
+            engine.set_active_input("keyboard");
+        }
     });
 
     window.addEventListener("updatelanguage", (_: Event) => {
