@@ -2,7 +2,6 @@ const LANG_KEY = "lainTSX-lang";
 const KEYBINDINGS_KEY = "lainTSX-keys"
 const SAVE_KEY = "lainTSX-save-v3"
 const LEGACY_SAVE_KEY = "lainSaveState";
-const GAMEPAD_KEY = "lainTSX-gamepad";
 
 const LAND_AND_BINDINGS_HTML = `
         <div class="modal-inner-row" id="lang-bindings-modal">
@@ -17,28 +16,12 @@ const LAND_AND_BINDINGS_HTML = `
                         <div class="language-entry" data-lang="pt-BR" id="lang-pt-BR">Portuguese</div>
                         <div class="language-entry" data-lang="ru" id="lang-ru">Russian</div>
                         <div class="language-entry" data-lang="zh-CN" id="lang-zh-CN">Chinese</div>
-                </div>
-                <div class="modal-entry">
-                        <div class="bind-mode-toggle" id="bind-mode-toggle">
-                                <div class="bind-mode-button active" data-mode="keyboard">Keyboard</div>
-                                <div class="bind-mode-button" data-mode="gamepad">Gamepad</div>
                         </div>
-                        <div class="gamepad-section" id="gamepad-bind-section" style="display: none;">
-                                <div class="gamepad-status" id="gamepad-status">
-                                        <span class="gamepad-dot"></span>
-                                        <span class="gamepad-status-text">No gamepad detected</span>
-                                </div>
-                                <button class="reset-gamepad-bindings-button" id="reset-gamepad-binds-btn">
-                                        Reset gamepad bindings
-                                </button>
-                                <div class="gamepad-bindings" id="gamepad-binds-list"></div>
-                        </div>
-                        <div class="keyboard-bind-section" id="keyboard-bind-section">
-                                <button class="reset-keybindings-button" id="reset-keybinds-btn">
-                                        Reset keybindings
-                                </button>
-                                <div class="keybindings" id="keybinds-list"></div>
-                        </div>
+                        <div class="modal-entry">
+                        <button class="reset-keybindings-button" id="reset-keybinds-btn">
+                                Reset keybindings
+                        </button>
+                        <div class="keybindings" id="keybinds-list"></div>
                 </div>
         </div>
 `
@@ -197,40 +180,10 @@ const DEFAULT_KEYBINDINGS = [
         "arrowleft", "arrowright", "arrowup", "arrowdown", "w", "e", "r", "q", "x", "d", "z", "s", "c", "v"
 ]
 
-const GAMEPAD_BUTTON_NAMES = [
-        "A", "B", "X", "Y",
-        "LB", "RB", "LT", "RT",
-        "Back", "Start", "L3", "R3",
-        "D-Up", "D-Down", "D-Left", "D-Right",
-        "Home", "Touchpad",
-]
-
-// Default W3C "standard" gamepad button -> PSX Key mapping.
-// Index = PSX Key enum value, value = gamepad button index (-1 = unbound).
-const DEFAULT_GAMEPAD_MAPPINGS = [
-        14, // Key.Left    -> D-Pad Left
-        15, // Key.Right   -> D-Pad Right
-        12, // Key.Up      -> D-Pad Up
-        13, // Key.Down    -> D-Pad Down
-        4,  // Key.L1      -> LB
-        6,  // Key.L2      -> LT
-        5,  // Key.R1      -> RB
-        7,  // Key.R2      -> RT
-        1,  // Key.Circle   -> B
-        3,  // Key.Triangle -> Y
-        0,  // Key.Cross    -> A
-        2,  // Key.Square   -> X
-        8,  // Key.Select   -> Back
-        9,  // Key.Start    -> Start
-]
-
 class Modal {
         constructor() {
                 this.modal = null;
                 this.is_open = false;
-                this.selected_gamepad_key = undefined;
-                this.gamepad_poll_raf = null;
-                this.gamepad_status_interval = null;
                 this.create_modal();
                 this.bind_events();
 
@@ -292,10 +245,7 @@ class Modal {
 
                 this.keybinds_list = document.getElementById("keybinds-list")
                 this.refresh_keybindings()
-                this.refresh_gamepad_bindings()
-                this.refresh_gamepad_status()
                 this.refresh_languages()
-                this.set_bind_mode("keyboard")
         }
 
         refresh_keybindings() {
@@ -364,18 +314,6 @@ class Modal {
 
                         if (e.target.closest(".keybind-button")) {
                                 this.handle_bind_button_click(e)
-                        }
-
-                        if (e.target.closest(".bind-mode-button")) {
-                                this.set_bind_mode(e.target.closest(".bind-mode-button").dataset.mode)
-                        }
-
-                        if (e.target.closest(".gamepad-bind-button")) {
-                                this.handle_gamepad_bind_click(e)
-                        }
-
-                        if (e.target.closest("#reset-gamepad-binds-btn")) {
-                                this.set_gamepad_mappings(DEFAULT_GAMEPAD_MAPPINGS.slice())
                         }
 
                         if (e.target.closest("#export-btn")) {
@@ -518,8 +456,6 @@ class Modal {
                                 this.handle_keydown(e.key)
                         }
                 });
-
-                window.addEventListener("gamepadconnectionchange", () => this.refresh_gamepad_status());
 
                 document.getElementById("save-import").addEventListener("change", (e) => {
                         const file = e.target.files[0];
@@ -686,137 +622,6 @@ class Modal {
                 this.set_keybindings(DEFAULT_KEYBINDINGS.slice())
         }
 
-        set_bind_mode(mode) {
-                this.active_bind_mode = mode
-
-                const kb_btn = document.querySelector('.bind-mode-button[data-mode="keyboard"]')
-                const gp_btn = document.querySelector('.bind-mode-button[data-mode="gamepad"]')
-                if (kb_btn) kb_btn.classList.toggle("active", mode === "keyboard")
-                if (gp_btn) gp_btn.classList.toggle("active", mode === "gamepad")
-
-                const kb_section = document.getElementById("keyboard-bind-section")
-                const gp_section = document.getElementById("gamepad-bind-section")
-                if (kb_section) kb_section.style.display = mode === "keyboard" ? "flex" : "none"
-                if (gp_section) gp_section.style.display = mode === "gamepad" ? "flex" : "none"
-
-                // cancel any in-progress rebind in the mode we just left
-                if (mode === "keyboard" && this.selected_gamepad_key !== undefined) {
-                        if (this.gamepad_poll_raf) {
-                                cancelAnimationFrame(this.gamepad_poll_raf)
-                                this.gamepad_poll_raf = null
-                        }
-                        this.selected_gamepad_key = undefined
-                        this.refresh_gamepad_bindings()
-                } else if (mode === "gamepad" && this.selected_key !== undefined) {
-                        this.selected_key = undefined
-                        this.refresh_keybindings()
-                }
-        }
-
-        refresh_gamepad_bindings() {
-                const list = document.getElementById("gamepad-binds-list")
-                list.innerHTML = ''
-
-                const stored = localStorage.getItem("lainTSX-gamepad-keys")
-                let mappings = null
-                if (stored) {
-                        mappings = JSON.parse(stored)
-                }
-                if (!Array.isArray(mappings) || mappings.length !== KEY_DATA.length) {
-                        mappings = DEFAULT_GAMEPAD_MAPPINGS.slice()
-                }
-                this.gamepad_mappings = mappings
-
-                KEY_DATA.forEach((data, v) => {
-                        const btn = mappings[v]
-                        const label = (btn === undefined || btn === null || btn < 0)
-                                ? ""
-                                : GAMEPAD_BUTTON_NAMES[btn]
-                        list.insertAdjacentHTML("beforeend",
-                                `<div class="gamepad-bind-button" data-key="${v}">${label}</div>` +
-                                `<div>${data.icon}</div>` +
-                                `<div>${data.description}</div>`
-                        )
-                })
-        }
-
-	refresh_gamepad_status() {
-		const el = document.getElementById("gamepad-status")
-		const text_el = el.querySelector(".gamepad-status-text")
-		const pads = typeof navigator.getGamepads === "function" ? navigator.getGamepads() : []
-		const pad = Array.from(pads).find(p => p && p.connected)
-		const connected = !!pad
-		if (text_el) {
-			text_el.textContent = connected ? `Connected: ${pad.id}` : "No gamepad detected"
-		} else {
-			el.textContent = connected ? `Connected: ${pad.id}` : "No gamepad detected"
-		}
-		el.classList.toggle("connected", connected)
-		el.classList.toggle("disconnected", !connected)
-	}
-
-        handle_gamepad_bind_click(e) {
-                const clicked = e.target.closest(".gamepad-bind-button")
-
-                if (this.gamepad_poll_raf) {
-                        cancelAnimationFrame(this.gamepad_poll_raf)
-                        this.gamepad_poll_raf = null
-                }
-
-                document.querySelectorAll(".gamepad-bind-button").forEach(entry => {
-                        entry.classList.remove("active")
-                        const k = parseInt(entry.dataset.key)
-                        const m = this.gamepad_mappings[k]
-                        entry.innerText = (m === undefined || m === null || m < 0) ? "" : GAMEPAD_BUTTON_NAMES[m]
-                })
-
-                clicked.classList.add("active")
-                clicked.innerText = "> press a button <"
-                this.selected_gamepad_key = parseInt(clicked.dataset.key)
-
-                const prev = new Array(GAMEPAD_BUTTON_NAMES.length).fill(false)
-                const poll = () => {
-                        const pads = typeof navigator.getGamepads === "function" ? navigator.getGamepads() : []
-                        const pad = Array.from(pads).find(p => p && p.connected)
-                        if (pad) {
-                                let pressed = -1
-                                for (let i = 0; i < pad.buttons.length; i++) {
-                                        const pressed_now = pad.buttons[i].pressed
-                                        if (pressed_now && !prev[i]) {
-                                                pressed = i
-                                                break
-                                        }
-                                        prev[i] = pressed_now
-                                }
-                                if (pressed >= 0) {
-                                        const sel_key = this.selected_gamepad_key
-                                        // resolve conflicts: clear any other action already mapped to this button
-                                        for (let k = 0; k < this.gamepad_mappings.length; k++) {
-                                                if (k !== sel_key && this.gamepad_mappings[k] === pressed) {
-                                                        this.gamepad_mappings[k] = -1
-                                                }
-                                        }
-                                        this.gamepad_mappings[sel_key] = pressed
-                                        localStorage.setItem("lainTSX-gamepad-keys", JSON.stringify(this.gamepad_mappings))
-                                        window.dispatchEvent(new CustomEvent("updategamepadbindings"))
-                                        this.gamepad_poll_raf = null
-                                        this.selected_gamepad_key = undefined
-                                        this.refresh_gamepad_bindings()
-                                        return
-                                }
-                        }
-                        this.gamepad_poll_raf = requestAnimationFrame(poll)
-                }
-                this.gamepad_poll_raf = requestAnimationFrame(poll)
-        }
-
-        set_gamepad_mappings(mappings) {
-                this.gamepad_mappings = mappings.slice()
-                localStorage.setItem("lainTSX-gamepad-keys", JSON.stringify(this.gamepad_mappings))
-                window.dispatchEvent(new CustomEvent("updategamepadbindings"))
-                this.refresh_gamepad_bindings()
-        }
-
         refresh_languages() {
                 document.querySelectorAll(".language-entry").forEach(entry => {
                         entry.classList.remove("active");
@@ -946,13 +751,6 @@ class Modal {
                 document.body.style.overflow = "hidden";
                 this.is_open = true;
 
-                // refresh immediately so an already-connected gamepad shows up at once
-                this.refresh_gamepad_status();
-                // poll while the modal is open so plugging a pad in/out is reflected live
-                if (this.gamepad_status_interval === null) {
-                        this.gamepad_status_interval = setInterval(() => this.refresh_gamepad_status(), 500);
-                }
-
                 window.dispatchEvent(new CustomEvent('opensettings'));
         }
 
@@ -961,11 +759,6 @@ class Modal {
                 this.modal.classList.remove("show");
                 document.body.style.overflow = "auto";
                 this.is_open = false;
-
-                if (this.gamepad_status_interval !== null) {
-                        clearInterval(this.gamepad_status_interval);
-                        this.gamepad_status_interval = null;
-                }
 
                 window.dispatchEvent(new CustomEvent('closesettings'));
         }
