@@ -1,4 +1,4 @@
-import { engine_create, get_user_language, read_key_mappings, SceneKind } from "./engine";
+import { engine_create, get_user_language, read_key_mappings, read_gamepad_mappings, SceneKind } from "./engine";
 import { check_if_legacy_save_and_upgrade } from "./save";
 import { SiteScene } from "./site";
 
@@ -40,6 +40,8 @@ import { SiteScene } from "./site";
                 return;
             }
 
+            engine.set_active_input("keyboard");
+
             const key = event.key.toLowerCase();
             if (key in engine.key_mappings) {
                 const psx_key = engine.key_mappings[key];
@@ -67,6 +69,22 @@ import { SiteScene } from "./site";
 
     window.addEventListener("updatekeybindings", (_: Event) => {
         engine.key_mappings = read_key_mappings();
+    });
+
+    window.addEventListener("updategamepadbindings", (_: Event) => {
+        engine.gamepad_mappings = read_gamepad_mappings();
+    });
+
+    window.addEventListener("gamepadconnected", (e: GamepadEvent) => {
+        engine.gamepad_index = e.gamepad.index;
+        window.dispatchEvent(new CustomEvent("gamepadconnectionchange"));
+    });
+
+    window.addEventListener("gamepaddisconnected", (e: GamepadEvent) => {
+        if (engine.gamepad_index === e.gamepad.index) {
+            engine.gamepad_index = null;
+        }
+        window.dispatchEvent(new CustomEvent("gamepadconnectionchange"));
     });
 
     window.addEventListener("updatelanguage", (_: Event) => {

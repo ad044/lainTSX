@@ -636,3 +636,147 @@ main {
 #media {
     display: none;
 }
+
+.gamepad-section {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5em;
+}
+
+.gamepad-status {
+    padding: 0.5em;
+    border: 1px solid white;
+    font-size: 0.9em;
+    word-break: break-word;
+}
+
+.gamepad-status.connected {
+    color: #9fe1cb;
+    border-color: #1d9e75;
+}
+
+.gamepad-status.disconnected {
+    color: #888;
+    border-color: #555;
+}
+
+.gamepad-dot {
+    display: inline-block;
+    width: 0.55em;
+    height: 0.55em;
+    border-radius: 50%;
+    margin-right: 0.5em;
+    background: #555;
+    vertical-align: middle;
+}
+
+.gamepad-status.connected .gamepad-dot {
+    background: #1d9e75;
+}
+
+.reset-gamepad-bindings-button {
+    background: black;
+    color: white;
+    border: 1px solid white;
+    cursor: pointer;
+    font-size: 1em;
+}
+
+.reset-gamepad-bindings-button:hover {
+    background: white;
+    color: black;
+}
+
+.bind-mode-toggle {
+    display: flex;
+    gap: 0.7em;
+}
+
+.bind-mode-button {
+    flex: 1;
+    padding: 0.35em 1em;
+    cursor: pointer;
+    color: white;
+    background: black;
+    border: 1px solid white;
+    text-align: center;
+    font-size: 1em;
+}
+
+.bind-mode-button:hover {
+    background: white;
+    color: black;
+}
+
+.bind-mode-button.active {
+    background: white;
+    color: black;
+}
+
+.keyboard-bind-section {
+    display: flex;
+    flex-direction: column;
+    gap: 1em;
+}
+
+.gamepad-bindings {
+    border: 1px solid white;
+    padding: 1em;
+    gap: 1em;
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    gap: 8px 16px;
+    align-items: center;
+}
+
+.gamepad-bind-button {
+    background: black;
+    color: white;
+    border: 1px solid white;
+    cursor: pointer;
+    padding: 0.2em;
+    height: 35px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1em;
+}
+
+.gamepad-bind-button:hover {
+    background: white;
+    color: black;
+}
+
+.gamepad-bind-button.active {
+    color: var(--orange);
+}
+
+/* keep gamepad rows visually identical to keyboard rows */
+.gamepad-bindings > div:nth-child(3n+2) {
+    text-align: center;
+    margin-right: 5em;
+}
+
+.gamepad-bindings > div:nth-child(3n+3) {
+    text-align: right;
+}
+
+.input-source {
+    position: fixed;
+    bottom: 8px;
+    left: 8px;
+    padding: 4px 8px;
+    font-size: 12px;
+    color: #fff;
+    background: rgba(0, 0, 0, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    border-radius: 4px;
+    letter-spacing: 1px;
+    pointer-events: none;
+    z-index: 500;
+}
+
+.input-source.gamepad {
+    color: #9fe1cb;
+    border-color: #1d9e75;
+}
